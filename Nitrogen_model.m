@@ -7,14 +7,18 @@ NO3  = 5.0;
 N2   = 0.0;
 CH2O = 1.0;
 O2   = 2.0;
-X1   = 3.64/3;
-X2   = 3.64/3;
+X1   = 0;
+X2   = 0;
 X3   = 3.64/3;
 
 % total simulation time
-tfinal = 8;     % unit: day
+T = linspace(0, 8, 100);     % unit: day
+y0 = [NH4 NO2 NO3 N2 CH2O O2 X1 X2 X3];
 
-[T, Y] = ode45(@myode, [0 tfinal],[NH4 NO2 NO3 N2 CH2O O2 X1 X2 X3]);
+[T, Y] = ode45(@myode, T, y0);
+
+t = linspace(0, 8, 50);
+y = Runge_Kutta(@myode, t, t(2)-t(1), y0);
 
 % plot
 specs  = {'NH4', 'NO2', 'NO3', 'N2', 'CH2O', 'O2', 'X1', 'X2', 'X3'};
@@ -24,7 +28,7 @@ for i = 1 : 9
         flag = [flag, i];
     end
 end
-plot(T, Y(:,flag), 'LineWidth', 2)
+plot(T, Y(:,flag), '-', t, y(:,flag), 'x--')
 legend(specs(flag))
 end
 
