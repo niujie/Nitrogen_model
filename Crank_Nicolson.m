@@ -44,7 +44,7 @@ for n = 1 : nsteps
     
     D(I) = (-alpha+beta)*u(I-1)+(1-2*beta)*u(I)+(alpha+beta)*u(I+1);
     D(1) = 20;
-    D(end) = 0;
+    D(end) = 2*u(nx-1)-u(nx-2);
     
     u = TDMAsolver(A, B, C, D);
     if mod(n,nplot)==0 || n==nsteps

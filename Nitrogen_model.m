@@ -1,41 +1,141 @@
 function Nitrogen_model()
 
+v       = 10;        % unit: cm/day, average linear velocity
+Diff    = 0.5*v;     % unit: cm2/day, longitudinal dispersivity (cm) * velocity (cm/day)
+xl      = 0;         % unit: cm, left boundary
+xr      = 50;        % unit: cm, right boundary
+nx      = 100;       % number of nodes
+tfinal  = 8;         % unit: day, total simulation time
+dx      = (xr-xl)/nx;% unit: cm, space step
+dt      = 0.08;      % unit: day, time step
+x       = linspace(xl, xr, nx)';  % unit: cm, space grids
+nsteps  = round(tfinal/dt);       % time steps
+nplot   = 1;
+
+tn      = 0;         % t(n)
+ns      = 9;         % number of different component
+u0      = zeros(nx, ns);
 % initial values, unit: mg/l
-NH4  = 0.0;
-NO2  = 0;
-NO3  = 5.0;
-N2   = 0.0;
-CH2O = 1.0;
-O2   = 2.0;
-X1   = 0;
-X2   = 0;
-X3   = 3.64/3;
+% NH4  = u0(:,1)
+% NO2  = u0(:,2)
+% NO3  = u0(:,3)
+% N2   = u0(:,4)
+% CH2O = u0(:,5)
+% O2   = u0(:,6)
+% X1   = u0(:,7)
+% X2   = u0(:,8)
+% X3   = u0(:,9)
+u0(:,1) = 0.0;
+u0(:,2) = 0;
+u0(:,3) = 5.0;
+u0(:,4) = 0.0;
+u0(:,5) = 1.0;
+u0(:,6) = 2.0;
+u0(:,7) = 0.0;
+u0(:,8) = 0.0;
+u0(:,9) = 3.64;
+% left boundary values, unit: mg/l
+u0(1,1) = 0.0;
+u0(1,2) = 0;
+u0(1,3) = 5.0;
+u0(1,4) = 0.0;
+u0(1,5) = 20.0;
+u0(1,6) = 2.0;
+u0(1,7) = 0.0;
+u0(1,8) = 0.0;
+u0(1,9) = 3.64;
+% right boundary values
+u0(end,1) = 0.0;
+u0(end,2) = 0.0;
+u0(end,3) = 0.0;
+u0(end,4) = 0.0;
+u0(end,5) = 0.0;
+u0(end,6) = 0.0;
+u0(end,7) = 0.0;
+u0(end,8) = 0.0;
+u0(end,9) = 0.0;
 
-% total simulation time
-T = linspace(0, 8, 100);     % unit: day
-y0 = [NH4 NO2 NO3 N2 CH2O O2 X1 X2 X3];
+u = u0;
 
-[T, Y] = ode45(@myode, T, y0);
+% construct left hand matrix
+alpha  = -v*dt/dx/4;
+beta   = Diff*dt/dx^2/2;
+A      = (alpha - beta) * ones(nx);
+A(1)   = 0;
+A(nx) = 0;
+B      = (1 + 2*beta) * ones(nx);
+B(1)   = 1;
+B(nx) = 1;
+C      = (-alpha - beta) * ones(nx);
+C(1)   = 0;
+C(nx) = 0;
 
-t = linspace(0, 8, 50);
-y = Runge_Kutta(@myode, t, t(2)-t(1), y0);
-
-% plot
+I = (2:nx-1)';
+% legend text for plot
 specs  = {'NH4', 'NO2', 'NO3', 'N2', 'CH2O', 'O2', 'X1', 'X2', 'X3'};
-flag = [];
-for i = 1 : 9
-    if any(Y(:,i) > 1e-3)
-        flag = [flag, i];
+% plot initial condition
+plot(x, u);
+legend(specs(1:9));
+title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
+               tn,0,nx))
+xlim([0 50])
+drawnow
+
+for n = 1 : nsteps    
+    tnp = tn + dt;
+    
+    % transport for each component
+    for i = 1 : ns
+        D      = zeros(nx);
+        D(I)   = (-alpha+beta)*u(I-1,i)+(1-2*beta)*u(I,i)+(alpha+beta)*u(I+1,i);
+        D(1)   = u0(1,i);
+        D(nx)  = 2*u(end-1,i) - u(end-2,i);
+        u(:,i) = TDMAsolver(A, B, C, D);
     end
-end
-plot(T, Y(:,flag), '-', t, y(:,flag), 'x--')
-legend(specs(flag))
+    
+    % Runge Kutta method solving system of ODEs
+    for i = 1 : nx
+        u(i,:) = Runge_Kutta(@myode, tnp, dt, u(i,:));
+    end
+    
+    if mod(n,nplot)==0 || n==nsteps
+        flag = 1:ns;
+        for i = 1 : ns
+            if all(u(:,i) < 1e-3)
+                flag(i) = 0;
+            end
+        end
+        flag(flag==0) = [];
+        plot(x, u(:,flag))
+        legend(specs(flag))
+        title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
+                       tnp,n,nx))
+        xlim([0 50])
+        drawnow
+    end    
+    tn = tnp;    
 end
 
+end
 
 
 %--------------------------------------------------------------------------
-function dydt = myode(t,y)
+
+function y = Runge_Kutta(f, t, h, y)
+% Runge Kutta 4th order method for solving ODE
+% input: f = function handle
+%        h = time step
+
+k1 = f(t, y);
+k2 = f(t + h/2, y' + h/2 * k1);
+k3 = f(t + h/2, y' + h/2 * k2);
+k4 = f(t + h,   y' + h   * k3);
+y = y + h/6*(k1'+2*k2'+2*k3'+k4');
+
+end
+
+%--------------------------------------------------------------------------
+function dydt = myode(~,y)
 
 mu_max_nit1  = 10;      % unit: 1/day, the maximum substrate utilization rate for nitrification (ammonium -> nitrite)
 mu_max_nit2  = 10;      % unit: 1/day, the maximum substrate utilization rate for nitrification (nitrite -> nitrate)
@@ -72,7 +172,7 @@ R_O2         = 1;       % retardation factor for O2
 NH4  = y(1);
 NO2  = y(2);
 NO3  = y(3);
-N2   = y(4);
+%N2   = y(4);
 CH2O = y(5);
 O2   = y(6);
 X1   = y(7);    % unit: mg/l, concentration of autotrophic ammonia-oxidizing biomass
@@ -105,4 +205,29 @@ dydt(7) = dX1dt;
 dydt(8) = dX2dt;
 dydt(9) = dX3dt;
 
+end
+
+%------------------------------------------------------------
+
+function x = TDMAsolver(a,b,c,d)
+%a, b, c are the column vectors for the compressed tridiagonal matrix, d is the right vector
+n = length(d); % n is the number of rows
+ 
+% Modify the first-row coefficients
+c(1) = c(1) / b(1);    % Division by zero risk.
+d(1) = d(1) / b(1);   
+ 
+for i = 2:n-1
+    temp = b(i) - a(i) * c(i-1);
+    c(i) = c(i) / temp;
+    d(i) = (d(i) - a(i) * d(i-1))/temp;
+end
+ 
+d(n) = (d(n) - a(n) * d(n-1))/( b(n) - a(n) * c(n-1));
+ 
+% Now back substitute.
+x(n) = d(n);
+for i = n-1:-1:1
+    x(i) = d(i) - c(i) * x(i + 1);
+end
 end
