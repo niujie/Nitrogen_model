@@ -29,13 +29,13 @@ alpha = -v*dt/dx/4;
 beta = Diff*dt/dx^2/2;
 A = (alpha - beta) * ones(size(u));
 A(1) = 0;
-A(end) = 0;
+A(nx) = 0;
 B = (1 + 2*beta) * ones(size(u));
 B(1) = 1;
-B(end) = 1;
+B(nx) = 1;
 C = (-alpha - beta) * ones(size(u));
 C(1) = 0;
-C(end) = 0;
+C(nx) = 0;
 D = zeros(size(u));
 I = (2:nx-1)';
 
@@ -44,7 +44,7 @@ for n = 1 : nsteps
     
     D(I) = (-alpha+beta)*u(I-1)+(1-2*beta)*u(I)+(alpha+beta)*u(I+1);
     D(1) = 20;
-    D(end) = 2*u(nx-1)-u(nx-2);
+    D(nx) = 2*u(nx-1)-u(nx-2);
     
     u = TDMAsolver(A, B, C, D);
     if mod(n,nplot)==0 || n==nsteps

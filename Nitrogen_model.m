@@ -1,4 +1,7 @@
 function Nitrogen_model()
+% parameters and model equations refer to
+% Mee-Sun Lee et al., Nitrogen transformation and transport modeling
+% in groundwater aquifers. Ecological Modelling, 2006
 
 v       = 10;        % unit: cm/day, average linear velocity
 Diff    = 0.5*v;     % unit: cm2/day, longitudinal dispersivity (cm) * velocity (cm/day)
@@ -45,15 +48,15 @@ u0(1,7) = 0.0;
 u0(1,8) = 0.0;
 u0(1,9) = 3.64;
 % right boundary values
-u0(end,1) = 0.0;
-u0(end,2) = 0.0;
-u0(end,3) = 0.0;
-u0(end,4) = 0.0;
-u0(end,5) = 0.0;
-u0(end,6) = 0.0;
-u0(end,7) = 0.0;
-u0(end,8) = 0.0;
-u0(end,9) = 0.0;
+u0(nx,1) = 0.0;
+u0(nx,2) = 0.0;
+u0(nx,3) = 0.0;
+u0(nx,4) = 0.0;
+u0(nx,5) = 0.0;
+u0(nx,6) = 0.0;
+u0(nx,7) = 0.0;
+u0(nx,8) = 0.0;
+u0(nx,9) = 0.0;
 
 u = u0;
 
@@ -89,7 +92,7 @@ for n = 1 : nsteps
         D      = zeros(nx);
         D(I)   = (-alpha+beta)*u(I-1,i)+(1-2*beta)*u(I,i)+(alpha+beta)*u(I+1,i);
         D(1)   = u0(1,i);
-        D(nx)  = 2*u(end-1,i) - u(end-2,i);
+        D(nx)  = 2*u(nx-1,i) - u(nx-2,i);
         u(:,i) = TDMAsolver(A, B, C, D);
     end
     
