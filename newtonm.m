@@ -1,4 +1,4 @@
-function [x,iter] = newtonm(x0,f,J) 
+function [x,iter] = newtonm(x0,vals,f,J) 
 % Newton-Raphson method applied to a 
 % system of linear equations f(x) = 0, 
 % given the jacobian function J, with 
@@ -9,19 +9,19 @@ N = 100; % define max. number of iterations
 epsilon = 1e-10; % define tolerance 
 maxval = 10000.0; % define value for divergence 
 xx = x0; % load initial guess 
-dx = 0.001;
+dx = 1e-6;
 while (N>0) 
-    JJ = feval(J,f,xx,dx); 
+    JJ = feval(J,f,xx,dx,vals); 
     if abs(det(JJ))<epsilon 
         error('newtonm - Jacobian is singular - try new x0'); 
     end; 
-    xn = xx - JJ\feval(f,xx);
-    if abs(feval(f,xn))<epsilon 
+    xn = xx - JJ\feval(f,xx,vals);
+    if abs(feval(f,xn,vals))<epsilon 
         x=xn; 
         iter = 100-N; 
         return; 
     end; 
-    if abs(feval(f,xx))>maxval 
+    if abs(feval(f,xx,vals))>maxval 
         iter = 100-N; 
         disp(['iterations = ',num2str(iter)]); 
         error('Solution diverges'); 

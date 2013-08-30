@@ -1,4 +1,4 @@
-function [J] = jacobFD(f,x,delx)
+function [J] = jacobFD(f,x,delx,vals)
 % Calculates the Jacobian of the
 % system of non-linear equations:
 % f(x) = 0, through finite differences.
@@ -10,6 +10,6 @@ for j = 1:m
     xm = x;
     xp(j) = x(j) + delx;
     xm(j) = x(j) - delx;
-    J(:,j) = (feval(f,xp)-feval(f,xm))/delx/2;
+    J(:,j) = (feval(f,xp,vals)-feval(f,xm,vals))/delx/2;
 end; 
 % end function

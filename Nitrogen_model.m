@@ -78,10 +78,12 @@ I = (2:nx-1)';
 specs  = {'NH4', 'NO2', 'NO3', 'N2', 'CH2O', 'O2', 'X1', 'X2', 'X3'};
 % plot initial condition
 plot(x, u);
-legend(specs(1:9));
+legend(specs(1:ns));
 title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
                tn,0,nx))
-xlim([0 50])
+xlim([0 xr])
+xlabel('DISTANCE (cm)')
+ylabel('CONCENTRATION (mg/l)')
 drawnow
 
 for n = 1 : nsteps    
@@ -114,6 +116,8 @@ for n = 1 : nsteps
         title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
                        tnp,n,nx))
         xlim([0 50])
+        xlabel('DISTANCE (cm)')
+        ylabel('CONCENTRATION (mg/l)')
         drawnow
     end    
     tn = tnp;    
@@ -208,29 +212,4 @@ dydt(7) = dX1dt;
 dydt(8) = dX2dt;
 dydt(9) = dX3dt;
 
-end
-
-%------------------------------------------------------------
-
-function x = TDMAsolver(a,b,c,d)
-%a, b, c are the column vectors for the compressed tridiagonal matrix, d is the right vector
-n = length(d); % n is the number of rows
- 
-% Modify the first-row coefficients
-c(1) = c(1) / b(1);    % Division by zero risk.
-d(1) = d(1) / b(1);   
- 
-for i = 2:n-1
-    temp = b(i) - a(i) * c(i-1);
-    c(i) = c(i) / temp;
-    d(i) = (d(i) - a(i) * d(i-1))/temp;
-end
- 
-d(n) = (d(n) - a(n) * d(n-1))/( b(n) - a(n) * c(n-1));
- 
-% Now back substitute.
-x(n) = d(n);
-for i = n-1:-1:1
-    x(i) = d(i) - c(i) * x(i + 1);
-end
 end
