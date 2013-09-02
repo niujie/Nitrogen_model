@@ -11,7 +11,7 @@ xr      = 50;        % unit: cm, right boundary
 nx      = 100;       % number of nodes
 tfinal  = 8;         % unit: day, total simulation time
 dx      = (xr-xl)/nx;% unit: cm, space step
-dt      = 0.08;      % unit: day, time step
+dt      = 0.008;      % unit: day, time step
 x       = linspace(xl, xr, nx)';  % unit: cm, space grids
 nsteps  = round(tfinal/dt);       % time steps
 nplot   = 1;
@@ -31,26 +31,28 @@ u0      = zeros(nx, ns);
 % a = u0(:,9)   % ammonia   concentration within colony
 u0(:,1) = 1.0e-3;
 u0(:,2) = 2.0e-3;
-u0(:,3) = 0.0;
-u0(:,4) = 0.0;
+u0(:,3) = 0.0e-3;
+u0(:,4) = 1.0e-3;
 u0(:,5) = 5.65e-4;
 u0(:,6) = u0(:,1)/10;
 u0(:,7) = u0(:,2)/10;
 u0(:,8) = u0(:,3)/10;
-u0(:,9) = u0(:,4)/10;
+u0(:,9) = 1.0e-3;
 % left boundary values, unit: mg/cm3
 u0(1,1) = 10.0e-3;
 u0(1,2) = 2.0e-3;
+u0(1,4) = 1.0e-3;
+u0(1,5) = 5.65e-4;
 % right boundary values
 u0(nx,1) = 0.0;
 u0(nx,2) = 0.0;
 u0(nx,3) = 0.0;
-u0(nx,4) = 0.0;
+u0(nx,4) = 1.0e-3;
 u0(nx,5) = 0.0;
 u0(nx,6) = 0.0;
 u0(nx,7) = 0.0;
 u0(nx,8) = 0.0;
-u0(nx,9) = 0.0;
+u0(nx,9) = 1.0e-3;
 
 u = u0;
 
@@ -91,25 +93,37 @@ for n = 1 : nsteps
         D(nx)  = 2*u(nx-1,i) - u(nx-2,i);
         u(:,i) = TDMAsolver(A, B, C, D);
     end
-    
-    % Newton iterative method for s, o, n, a ==> u(:,6:9)
-    % u(:,1:4) are S, O, N, A
+    u(1,5:9) = u0(1,5:9);
+    u(nx,5:9) = u0(nx,5:9);
     for i = 1 : nx
-        u(i,6:9) = newtonm(u(i,6:9)',u(i,1:4)',@fun,@jacobFD);
-        % Runge Kutta method solving ODE equation (25) for biomass, u(:,5)
-        u(i,5) = Runge_Kutta_mode(@mode, tnp, dt, u(i,5), u(i,6:9));
-        % Runge Kutta method solving system of ODEs in eq (9) to (12) for
-        % S, O, N, and A
-        for item = 1 : 4
-            u(i,item) = Runge_Kutta_odes(@odes, tnp, dt, u(i,item), u(i,item+5), u(i,5), item);
+        error = 1e8;
+        uold = u(i,:);
+        while error > 1e-5
+            unew = u(i,:);
+            % Newton iterative method for s, o, n, a ==> u(:,6:9)
+            % u(:,1:4) are S, O, N, A        
+            u(i,6:9) = newtonm(uold(6:9)',u(i,1:4)',@fun,@jacobFD);
+            % Runge Kutta method solving ODE equation (25) for biomass, u(:,5)
+            % note that M is update based on the old step value and the
+            % iterated values of s, o, n and a, not the itrated value of M
+            %u(i,5) = Runge_Kutta_mode(@mode, tnp, dt, uold(5), u(i,6:9));
+            u(i,5) = mode_tp(dt, uold(5), u(i,6:9));
+            % Runge Kutta method solving system of ODEs in eq (9) to (12) for
+            % S, O, N, and A
+            for item = 1 : 4
+                % note S, O, N and A are updated based on the ADE solution
+                % not on the previous iterated solution
+                u(i,item) = Runge_Kutta_odes(@odes, tnp, dt, uold(item), u(i,item+5), u(i,5), item);
+                %u(i,item) = odes_tp(dt, uold(item), u(i,item+5), u(i,5), item);
+            end
+            error = max(abs(u(i,:)-unew));
         end
     end
-
     
     if mod(n,nplot)==0 || n==nsteps
         flag = 1:ns;
         for i = 1 : ns
-            if all(u(:,i) < 1e-3)
+            if all(u(:,i) < 1e-8)
                 flag(i) = 0;
             end
         end
@@ -119,6 +133,7 @@ for n = 1 : nsteps
         title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
                        tnp,n,nx))
         xlim([0 50])
+        ylim([0 10])
         xlabel('DISTANCE (cm)')
         ylabel('CONCENTRATION (mg/l)')
         drawnow
@@ -166,12 +181,47 @@ o = u(2);
 n = u(3);
 a = u(4);
 
-dMdt = M * ((muo*s*o*a/(Kso+s)/(Ko+o)/(Kao+a)-ko) + ...
-    (mun*s*n*a/(Ksn+s)/(Kn+n)/(Kan+a)-kn)/(1+o/Kc));
+%dMdt = M * ((muo*s*o*a/(Kso+s)/(Ko+o)/(Kao+a)-ko) + ...
+%    (mun*s*n*a/(Ksn+s)/(Kn+n)/(Kan+a)-kn)/(1+o/Kc));
+% ammonia is in excess
+dMdt = M * ((muo*s*o/(Kso+s)/(Ko+o)-ko) + ...
+    (mun*s*n/(Ksn+s)/(Kn+n)-kn)/(1+o/Kc));
 
 end
 
 
+%--------------------------------------------------------------------------
+function M = mode_tp(dt, M, u)
+% equatio (25) in the paper
+% all parameters should be the same to those in fun.m
+% trapezoid method to implicitly solve ODE
+
+muo     = 3.1;        % unit: day-1, maximum specific growth rate for the active heterotrophic population
+mun     = 2.9;        % unit: day-1, maximum specific growth rate
+ko      = 0.02;       % unit: day-1, microbial decay coefficient for aerobic respiration
+kn      = 0.02;       % unit: day-1, microbial decay coefficient for nitrate respiration
+Kso     = 0.04;       % unit: mg/cm3, substrate saturation constants under aerobic respiration
+Ksn     = 0.04;       % unit: mg/cm3, substrate saturation constants under nitrate respiration
+Ko      = 0.00077;    % unit: mg/cm3, oxygen saturation constants under aerobic respiration
+Kn      = 0.0026;     % unit: mg/cm3, nitrate saturation constants under nitrate respiration
+Kao     = 0.001;      % unit: mg/cm3, ammonia saturation constants under aerobic respiration
+Kan     = 0.001;      % unit: mg/cm3, ammonia saturation constants under nitrate respiration
+Kc      = 1;          % unit: mass/length3, inhibition coefficient
+
+s = u(1);
+o = u(2);
+n = u(3);
+a = u(4);
+
+%dMdt = M * ((muo*s*o*a/(Kso+s)/(Ko+o)/(Kao+a)-ko) + ...
+%    (mun*s*n*a/(Ksn+s)/(Kn+n)/(Kan+a)-kn)/(1+o/Kc));
+% ammonia is in excess
+f = (muo*s*o/(Kso+s)/(Ko+o)-ko) + ...
+    (mun*s*n/(Ksn+s)/(Kn+n)-kn)/(1+o/Kc);
+
+M = (1+dt*f/2)/(1-dt*f/2)*M;
+
+end
 %--------------------------------------------------------------------------
 
 function y = Runge_Kutta_odes(f, t, h, y, u, M, item)
@@ -223,7 +273,7 @@ switch item
         f = fo;
     case 3
         D = Dnb;      % for nitrate
-        f = fn
+        f = fn;
     case 4
         D = Dab;      % for ammonia
         f = fa;
@@ -232,5 +282,56 @@ switch item
 end
 
 dUdt = -D*M/theta*(U-u)/delta*beta/mc/f;
+
+end
+
+%--------------------------------------------------------------------------
+function U = odes_tp(dt, U, u, M, item)
+% ODE system in equations (9) to (12) in the paper
+% trapezoid method to implicitly solve ODEs
+% inputs:
+%         U is one of [S, O, N, A],   u(:,1:4)
+%         u is one of [s, o, n, a],   u(:,6:9)
+%         M is biomass concentration, u(:,5)
+%         item is an integer to specify which one in u(:,1:4)
+
+% all parameters should be the same to those in fun.m
+Dsb     = 1.03;       % unit: cm2/day, coefficient of diffusion in the boundary layer
+Dob     = 2.19;       % unit: cm2/day, coefficient of diffusion in the boundary layer
+Dnb     = 1.50;       % unit: cm2/day, coefficient of diffusion in the boundary layer
+Dab     = 1.86;       % unit: cm2/day, coefficient of diffusion in the boundary layer
+mc      = 2.83e-8;    % unit: mg/colony, cell mass of an average colony
+delta   = 50.0e-4;    % unit: um -> cm, boundary layer thickness
+rc      = 10.0e-4;    % unit: um -> cm, disk of uniform radius attached to aquifer sediment
+tau     = 1.0e-4;     % unit: um -> cm, disk thickness attached to aquifer sediment
+beta    = pi*rc^2 + 2*pi*rc*tau;    % total area across which diffusion occurs
+
+fs      = 1.10;       % substrate retardatoin factor (ratio of actual pore 
+                      % water velocity to velocity of the species in solution)
+fo      = 1.00;       % oxygen retardatoin factor
+fn      = 1.00;       % nitrate retardatoin factor
+fa      = 2.20;       % ammonia retardatoin factor
+theta   = 1.0;        % porosity
+
+switch item
+    case 1
+        D = Dsb;      % for substrate
+        f = fs;
+    case 2
+        D = Dob;      % for Oxygen
+        f = fo;
+    case 3
+        D = Dnb;      % for nitrate
+        f = fn;
+    case 4
+        D = Dab;      % for ammonia
+        f = fa;
+    otherwise
+        error('number of item exceeds the maximum 4')
+end
+
+coef = -D*M/theta/delta*beta/mc/f;
+
+U = ((1+dt*coef/2)*U - dt*coef*u)/(1-dt*coef/2);
 
 end

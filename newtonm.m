@@ -6,7 +6,7 @@ function [x,iter] = newtonm(x0,vals,f,J)
 % x = [x1;x2;...;xn], f = [f1;f2;...;fn] 
 % x0 is an initial guess of the solution 
 N = 100; % define max. number of iterations 
-epsilon = 1e-10; % define tolerance 
+epsilon = 1e-8; % define tolerance 
 maxval = 10000.0; % define value for divergence 
 xx = x0; % load initial guess 
 dx = 1e-6;

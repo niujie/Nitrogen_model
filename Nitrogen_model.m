@@ -28,7 +28,7 @@ u0      = zeros(nx, ns);
 % X1   = u0(:,7)
 % X2   = u0(:,8)
 % X3   = u0(:,9)
-u0(:,1) = 0.0;
+u0(:,1) = 1.0;
 u0(:,2) = 0;
 u0(:,3) = 5.0;
 u0(:,4) = 0.0;
@@ -38,7 +38,7 @@ u0(:,7) = 0.0;
 u0(:,8) = 0.0;
 u0(:,9) = 3.64;
 % left boundary values, unit: mg/l
-u0(1,1) = 0.0;
+u0(1,1) = 1.0;
 u0(1,2) = 0;
 u0(1,3) = 5.0;
 u0(1,4) = 0.0;
@@ -187,6 +187,7 @@ X2   = y(8);    % unit: mg/l, concentration of autotrophic nitrite-oxidizing bio
 X3   = y(9);    % unit: mg/l, the heterotrophic biomass concentration
 
 r1 = mu_max_nit1*X1*(kb1/(kb1+X1))*(NH4/(K_NH4+NH4))*(O2/(K_O2+O2));    % unit: mg/day, substrate utilization rate by ammonium oxidation process 1
+%r1 = mu_max_nit1*X1*(kb1/(kb1+X1))*1.0*(O2/(K_O2+O2));                  % ammonia is in excess
 r2 = mu_max_nit2*X2*(kb2/(kb2+X2))*(NO2/(K_NO2+NO2))*(O2/(K_O2+O2));    % unit: mg/day, substrate utilization rate by nitrite oxidation process 2
 r3 = mu_max_denit*X3*(kb3/(kb3+X3))*(k_O2I/(k_O2I+O2))*(CH2O/(K_CH2O+CH2O))*(NO3/(K_NO3+NO3));  % unit: mg/day, substrate utilization rate by denitrification
 r4 = mu_max_oxid*X3*(kb3/(kb3+X3))*(CH2O/(K_CH2O+CH2O))*(O2/(K_O2+O2)); % unit: mg/day, substrate utilization rate by denitrification
