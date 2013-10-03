@@ -8,7 +8,7 @@ Diff    = 0.5*v;     % unit: cm2/day, longitudinal dispersivity (cm) * velocity 
 xl      = 0;         % unit: cm, left boundary
 xr      = 50;        % unit: cm, right boundary
 nx      = 100;       % number of nodes
-tfinal  = 8;         % unit: day, total simulation time
+tfinal  = 4;         % unit: day, total simulation time
 dx      = (xr-xl)/nx;% unit: cm, space step
 dt      = 0.08;      % unit: day, time step
 x       = linspace(xl, xr, nx)';  % unit: cm, space grids
@@ -34,8 +34,8 @@ u0(:,3) = 5.0;
 u0(:,4) = 0.0;
 u0(:,5) = 1.0;
 u0(:,6) = 2.0;
-u0(:,7) = 0.0;
-u0(:,8) = 0.0;
+u0(:,7) = 0;
+u0(:,8) = 0;
 u0(:,9) = 3.64;
 % left boundary values, unit: mg/l
 u0(1,1) = 1.0;
@@ -44,8 +44,8 @@ u0(1,3) = 5.0;
 u0(1,4) = 0.0;
 u0(1,5) = 20.0;
 u0(1,6) = 2.0;
-u0(1,7) = 0.0;
-u0(1,8) = 0.0;
+u0(1,7) = 0;
+u0(1,8) = 0;
 u0(1,9) = 3.64;
 % right boundary values
 u0(nx,1) = 0.0;
@@ -59,19 +59,6 @@ u0(nx,8) = 0.0;
 u0(nx,9) = 0.0;
 
 u = u0;
-
-% construct left hand matrix
-alpha  = -v*dt/dx/4;
-beta   = Diff*dt/dx^2/2;
-A      = (alpha - beta) * ones(nx);
-A(1)   = 0;
-A(nx) = 0;
-B      = (1 + 2*beta) * ones(nx);
-B(1)   = 1;
-B(nx) = 1;
-C      = (-alpha - beta) * ones(nx);
-C(1)   = 0;
-C(nx) = 0;
 
 I = (2:nx-1)';
 % legend text for plot
@@ -91,6 +78,31 @@ for n = 1 : nsteps
     
     % transport for each component
     for i = 1 : ns
+        % construct left hand matrix
+        ne           = 0.44;    % dimensionless, porosity
+        rho          = 1.56e6;  % unit: mg/l, soil bulk density
+        KdCH2O       = 2.93e-8; % unit: l/mg, linear partitioning coefficient of DOC
+        KdNH4        = 35.2e-8; % unit: l/mg, linear partitioning coefficient of ammonium
+        switch i
+            case {2, 3, 4, 6, 7, 8, 9}
+                R = 1;
+            case 1
+                R = 1 + rho/ne * KdNH4;
+            case 5
+                R = 1 + rho/ne * KdCH2O;
+            otherwise
+        end
+        alpha  = -v*dt/dx/4/R;
+        beta   = Diff*dt/dx^2/2/R;
+        A      = (alpha - beta) * ones(nx);
+        A(1)   = 0;
+        A(nx) = 0;
+        B      = (1 + 2*beta) * ones(nx);
+        B(1)   = 1;
+        B(nx) = 1;
+        C      = (-alpha - beta) * ones(nx);
+        C(1)   = 0;
+        C(nx) = 0;        
         D      = zeros(nx);
         D(I)   = (-alpha+beta)*u(I-1,i)+(1-2*beta)*u(I,i)+(alpha+beta)*u(I+1,i);
         D(1)   = u0(1,i);
@@ -134,10 +146,10 @@ function y = Runge_Kutta(f, t, h, y)
 %        h = time step
 
 k1 = f(t, y);
-k2 = f(t + h/2, y' + h/2 * k1);
-k3 = f(t + h/2, y' + h/2 * k2);
-k4 = f(t + h,   y' + h   * k3);
-y = y + h/6*(k1'+2*k2'+2*k3'+k4');
+k2 = f(t + h/2, y + h/2 * k1);
+k3 = f(t + h/2, y + h/2 * k2);
+k4 = f(t + h,   y + h   * k3);
+y = y + h/6*(k1+2*k2+2*k3+k4);
 
 end
 
@@ -169,11 +181,15 @@ Y3           = 0.5;     % microbial yield coefficients for heterotrophic bacteri
 d1           = 0.02;    % unit: 1/day, death or maintenance rate constant of autotrophic ammonia-oxidizing bacteria
 d2           = 0.02;    % unit: 1/day, death or maintenance rate constant of autotrophic nitrite-oxidizing bacteria
 d3           = 0.02;    % unit: 1/day, death or maintenance rate constant of heterotrophic biomass
-R_NH4        = 1;       % retardation factor for NH4+
+ne           = 0.44;    % dimensionless, porosity
+rho          = 1.56e6;  % unit: mg/l, soil bulk density
+KdCH2O       = 2.93e-8; % unit: l/mg, linear partitioning coefficient of DOC
+KdNH4        = 35.2e-8; % unit: l/mg, linear partitioning coefficient of ammonium
+R_NH4        = 1 + rho/ne * KdNH4;       % retardation factor for NH4+
 R_NO2        = 1;       % retardation factor for NO2-
 R_NO3        = 1;       % retardation factor for NO3-
 R_N2         = 1;       % retardation factor for N2
-R_CH2O       = 1;       % retardation factor for CH2O
+R_CH2O       = 1 + rho/ne * KdCH2O;       % retardation factor for CH2O
 R_O2         = 1;       % retardation factor for O2
 
 NH4  = y(1);
@@ -202,7 +218,7 @@ dX1dt   = Y1 * r1 - X1 * d1;
 dX2dt   = Y2 * r2 - X2 * d2;
 dX3dt   = Y3 * (r3+r4) - X3 * d3;
 
-dydt = zeros(9,1);
+dydt = zeros(1,9);
 dydt(1) = dNH4dt;
 dydt(2) = dNO2dt;
 dydt(3) = dNO3dt;
