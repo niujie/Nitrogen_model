@@ -4,13 +4,13 @@ function Nitrogen_model()
 % in groundwater aquifers. Ecological Modelling, 2006
 
 v       = 10;        % unit: cm/day, average linear velocity
-Diff    = 0.5*v;     % unit: cm2/day, longitudinal dispersivity (cm) * velocity (cm/day)
+%Diff    = 0.5*v;     % unit: cm2/day, longitudinal dispersivity (cm) * velocity (cm/day)
 xl      = 0;         % unit: cm, left boundary
 xr      = 50;        % unit: cm, right boundary
 nx      = 100;       % number of nodes
 tfinal  = 4;         % unit: day, total simulation time
 dx      = (xr-xl)/nx;% unit: cm, space step
-dt      = 0.08;      % unit: day, time step
+dt      = 0.04;      % unit: day, time step
 x       = linspace(xl, xr, nx)';  % unit: cm, space grids
 nsteps  = round(tfinal/dt);       % time steps
 nplot   = 1;
@@ -28,8 +28,8 @@ u0      = zeros(nx, ns);
 % X1   = u0(:,7)
 % X2   = u0(:,8)
 % X3   = u0(:,9)
-u0(:,1) = 1.0;
-u0(:,2) = 0;
+u0(:,1) = 0.0;
+u0(:,2) = 0.0;
 u0(:,3) = 5.0;
 u0(:,4) = 0.0;
 u0(:,5) = 1.0;
@@ -38,8 +38,8 @@ u0(:,7) = 0;
 u0(:,8) = 0;
 u0(:,9) = 3.64;
 % left boundary values, unit: mg/l
-u0(1,1) = 1.0;
-u0(1,2) = 0;
+u0(1,1) = 0.0;
+u0(1,2) = 0.0;
 u0(1,3) = 5.0;
 u0(1,4) = 0.0;
 u0(1,5) = 20.0;
@@ -72,7 +72,7 @@ xlim([0 xr])
 xlabel('DISTANCE (cm)')
 ylabel('CONCENTRATION (mg/l)')
 drawnow
-
+load data_2006paper.mat
 for n = 1 : nsteps    
     tnp = tn + dt;
     
@@ -91,6 +91,18 @@ for n = 1 : nsteps
             case 5
                 R = 1 + rho/ne * KdCH2O;
             otherwise
+        end
+        switch i
+            case 1
+                Diff = 1.86;
+            case 3
+                Diff = 1.50;
+            case 5
+                Diff = 1.03;
+            case 6
+                Diff = 2.19;
+            otherwise
+                Diff = 0.5 * v;
         end
         alpha  = -v*dt/dx/4/R;
         beta   = Diff*dt/dx^2/2/R;
@@ -128,8 +140,14 @@ for n = 1 : nsteps
         title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
                        tnp,n,nx))
         xlim([0 50])
+        ylim([0 24])
+        hold on
+        plot(Sub_4min(:,1), Sub_4min(:,2), 'k^')
+        plot(Nitrate_4min(:,1), Nitrate_4min(:,2), 'kd')
+        plot(DO_4min(:,1), DO_4min(:,2), 'ko')
         xlabel('DISTANCE (cm)')
         ylabel('CONCENTRATION (mg/l)')
+        hold off
         drawnow
     end    
     tn = tnp;    

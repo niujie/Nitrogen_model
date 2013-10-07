@@ -56,19 +56,6 @@ u0(nx,9) = 1.0e-3;
 
 u = u0;
 
-% construct left hand matrix
-alpha  = -v*dt/dx/4;
-beta   = Diff*dt/dx^2/2;
-A      = (alpha - beta) * ones(nx);
-A(1)   = 0;
-A(nx) = 0;
-B      = (1 + 2*beta) * ones(nx);
-B(1)   = 1;
-B(nx) = 1;
-C      = (-alpha - beta) * ones(nx);
-C(1)   = 0;
-C(nx) = 0;
-
 I = (2:nx-1)';
 % legend text for plot
 specs  = {'SUB', 'O2', 'NO3', 'NH4', 'Bio', 'sub', 'o2', 'no3', 'nh4'};
@@ -80,13 +67,44 @@ title(sprintf('t = %6.2f  after %4i time steps with %5i grid points',...
 xlim([0 xr])
 xlabel('DISTANCE (cm)')
 ylabel('CONCENTRATION (mg/l)')
-drawnow    
+drawnow
 
+options = optimoptions('fsolve','Display','off');  % Turn off display
 for n = 1 : nsteps
     tnp = tn + dt;
     
     % transport for S, O, N, A
     for i = 1 : 4
+        fs      = 1.10;       % substrate retardatoin factor (ratio of actual pore 
+                              % water velocity to velocity of the species in solution)
+        fo      = 1.00;       % oxygen retardatoin factor
+        fn      = 1.00;       % nitrate retardatoin factor
+        fa      = 2.20;       % ammonia retardatoin factor
+
+        switch i
+            case 1
+                f = fs;
+            case 2
+                f = fo;
+            case 3
+                f = fn;
+            case 4
+                f = fa;
+            otherwise
+                error('number of item exceeds the maximum 4');
+        end
+        % construct left hand matrix
+        alpha  = -v*dt/dx/4/f;
+        beta   = Diff*dt/dx^2/2/f;
+        A      = (alpha - beta) * ones(nx);
+        A(1)   = 0;
+        A(nx) = 0;
+        B      = (1 + 2*beta) * ones(nx);
+        B(1)   = 1;
+        B(nx) = 1;
+        C      = (-alpha - beta) * ones(nx);
+        C(1)   = 0;
+        C(nx) = 0;
         D      = zeros(nx);
         D(I)   = (-alpha+beta)*u(I-1,i)+(1-2*beta)*u(I,i)+(alpha+beta)*u(I+1,i);
         D(1)   = u0(1,i);
@@ -96,13 +114,17 @@ for n = 1 : nsteps
     u(1,5:9) = u0(1,5:9);
     u(nx,5:9) = u0(nx,5:9);
     for i = 1 : nx
-        error = 1e8;
+        err = 1e8;
         uold = u(i,:);
-        while error > 1e-5
+        N = 0;
+        while err > 1e-6
+            N = N + 1;
             unew = u(i,:);
             % Newton iterative method for s, o, n, a ==> u(:,6:9)
             % u(:,1:4) are S, O, N, A        
-            u(i,6:9) = newtonm(uold(6:9)',u(i,1:4)',@fun,@jacobFD);
+            %u(i,6:9) = newtonm(uold(6:9)',u(i,1:4)',@fun,@jacobFD);
+            f = @(x) fun(x, u(i,1:4)');
+            u(i,6:9) = fsolve(f, uold(6:9)', options);
             % Runge Kutta method solving ODE equation (25) for biomass, u(:,5)
             % note that M is update based on the old step value and the
             % iterated values of s, o, n and a, not the itrated value of M
@@ -116,7 +138,11 @@ for n = 1 : nsteps
                 u(i,item) = Runge_Kutta_odes(@odes, tnp, dt, uold(item), u(i,item+5), u(i,5), item);
                 %u(i,item) = odes_tp(dt, uold(item), u(i,item+5), u(i,5), item);
             end
-            error = max(abs(u(i,:)-unew));
+            err = max(abs(u(i,:)-unew));
+            if N > 100
+                display('exceed 100 iters. continue.');
+                break;
+            end
         end
     end
     
