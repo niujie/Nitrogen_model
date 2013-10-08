@@ -6,17 +6,31 @@ function Nitrogen_model3()
 
 time = (0:5000)';
 dt = 1;
-y = zeros(length(time), 1);
-y(1, :) = 0.2;
+y0 = [0.11, 1500, 8500, 50, 17.5, 0.002, 0.3];
+y = zeros(length(time), length(y0));
+DECl   = zeros(length(time), 1);
+MIN    = zeros(length(time), 1);
+UP_NO3 = zeros(length(time), 1);
+LE_NO3 = zeros(length(time), 1);
+y(1, :) = y0;
 for n = 1 : length(time) - 1
-    y(n+1, :) = y(n, :) + dt * myode([], y(n,:));
+    [dCNdt, DECl(n), MIN(n), UP_NO3(n), LE_NO3(n)] = myode(time(n), y(n,:));
+    y(n+1, :) = y(n, :) + dt * dCNdt;
 end
-plot(time, y);
-
+legends = {'s','Cl','Ch','Cb','Nl','N+','N-'};
+for i = 1 : length(y0)
+    figure;
+    plot(time, y(:,i));
+    legend(legends{i});
+end
+figure; plot(time, DECl);
+figure; plot(time, MIN);
+figure; plot(time, UP_NO3);
+figure; plot(time, LE_NO3);
 
 end
 
-function dCNdt = myode(~, CN)
+function [dCNdt, DECl, MIN, UP_NO3, LE_NO3] = myode(t, CN)
 
 date = datestr(t + datenum('01-Jan-1998'));
 month = date(4:6);
@@ -49,17 +63,23 @@ switch month
 end
 ADD = ADD * 100 * 5.2561;     % convert from Mg C ha^-1 day^-1 to g C m^-2 day^-1
                               % data from Christiane AWR 2012 paper figure
-                              % 4 and make the mean to table 
+                              % 4 and make the mean to table 1 on P.
+                              % D'Odorico AWR 2003 paper
 
 s  = CN(1);     % soil moisture
 Cl = CN(2);     % carbon concentration in the litter pool
 Ch = CN(3);     % carbon concentration in the humus pool
 Cb = CN(4);     % carbon concentration in the biomass pool
 Nl = CN(5);     % organic nitrogen concentration in the litter pool
-Nh = CN(6);     % organic nitrogen concentration in the humus pool
-Nb = CN(7);     % organic nitrogen concentration in the biomass pool
-NH4 = CN(8);    % ammonium concentration in the soil
-NO3 = CN(9);    % nitrate concentration in the soil
+% Nh = CN(6);     % organic nitrogen concentration in the humus pool
+% Nb = CN(7);     % organic nitrogen concentration in the biomass pool
+NH4 = CN(6);    % ammonium concentration in the soil
+NO3 = CN(7);    % nitrate concentration in the soil
+
+C_over_N_add = 58;
+C_over_N_b = 11.5;
+C_over_N_h = 22;
+C_over_N_l = Cl / Nl;
 
 % soil moisture part
 
@@ -137,14 +157,14 @@ rr = 0.6;       % dimensionless, fraction of decomposing C lost to respiration
 rh = min(0.25, C_over_N_h / C_over_N_l);
 kl = 6.5e-5;    % unit: m^3 d^-1 g C^-1
 
-eq18_curly_brackets = (kh*Ch*(1/C_over_N_h-(1-rr)/C_over_N_b)+kl*Cl*...
-    (1/C_over_N_l-rh/C_over_N_h-(1-rh-rr)/C_over_N_b));
+eq18_curly_brackets = kh*Ch*(1/C_over_N_h-(1-rr)/C_over_N_b)+kl*Cl*...
+    (1/C_over_N_l-rh/C_over_N_h-(1-rh-rr)/C_over_N_b);
 
 if eq18_curly_brackets > 0
     phi = 1;
 else
     IMM_max = (kiNH4 * NH4 + kiNO3 * NO3) * fd * Cb;
-    if fd * Cb * eq18_curly_brackets < IMM_max
+    if - fd * Cb * eq18_curly_brackets < IMM_max
         phi = 1;
     else
         phi = - (kiNH4 * NH4 + kiNO3 * NO3) / eq18_curly_brackets;
@@ -156,6 +176,8 @@ PHI = phi * fd * Cb * eq18_curly_brackets;
 if PHI > 0
     MIN = PHI;
     IMM = 0;
+    IMM_NH4 = IMM;
+    IMM_NO3 = IMM;
 else
     MIN = 0;
     IMM = - PHI;
@@ -171,13 +193,59 @@ dNldt = ADD/C_over_N_add + BD/C_over_N_b - DECl/C_over_N_l;
 DECh = phi * fd * kh * Cb * Ch;
 
 dChdt = rh * DECl - DECh;
-dNhdt = dChdt / C_over_N_h;
-
-
+% dNhdt = dChdt / C_over_N_h;
 
 dCbdt = (1 - rh - rr) * DECl + (1 - rr) * DECh - BD;
-DNbdt = (1 - rh * C_over_N_l / C_over_N_h) * DECl / C_over_N_l + ...
-    DECh / C_over_N_h - BD / C_over_N_b - PHI;
+% dNbdt = (1 - rh * C_over_N_l / C_over_N_h) * DECl / C_over_N_l + ...
+%     DECh / C_over_N_h - BD / C_over_N_b - PHI;
+
+a_NH4 = 0.05;       % dimensionless
+a_NO3 = 1;          % dimensionless
+LE_NH4 = a_NH4 * Ls * NH4 / (s * n * Zr);
+LE_NO3 = a_NO3 * Ls * NO3 / (s * n * Zr);
+
+UPp_NH4 = a_NH4 * Ts * NH4 / (s * n * Zr);
+UPp_NO3 = a_NO3 * Ts * NO3 / (s * n * Zr);
+
+DEM_NH4 = 0.2;      % unit: g N m^-3 d^-1
+DEM_NO3 = 0.5;      % unit: g N m^-3 d^-1
+F = 0.1;            % unit: m d^-1, rescaled diffusion coefficient
+d = 3;              % dimensionless, nonlinear dependence of the diffusion process on soil moisture
+ku = a_NH4 / (s * n * Zr) * F * s^d;
+if DEM_NH4 - UPp_NH4 < 0
+    UPa_NH4 = 0;
+else
+    if DEM_NH4 - UPp_NH4 < ku * NH4
+        UPa_NH4 = DEM_NH4 - UPp_NH4;
+    else
+        UPa_NH4 = ku * NH4;
+    end
+end
+ku = a_NO3 / (s * n * Zr) * F * s^d;
+if DEM_NO3 - UPp_NO3 < 0
+    UPa_NO3 = 0;
+else
+    if DEM_NO3 - UPp_NO3 < ku * NO3
+        UPa_NO3 = DEM_NO3 - UPp_NO3;
+    else
+        UPa_NO3 = ku * NO3;
+    end
+end
+
+UP_NH4 = UPp_NH4 + UPa_NH4;
+UP_NO3 = UPp_NO3 + UPa_NO3;
+
+% fn(s) accounts for the soil moisture effects on nitrification
+if s <= sfc
+    fn = s / sfc;
+else
+    fn = (1 - s) / (1 - sfc);
+end
+kn = 0.6;       % unit: m^3 d^-1 g C^-1, the rate of nitrification
+NIT = fn * kn * Cb * NH4;
+
+dNH4dt = MIN - IMM_NH4 - NIT - LE_NH4 - UP_NH4;
+dNO3dt = NIT - IMM_NO3 - LE_NO3 - UP_NO3;
 
 %
 dCNdt    = zeros(size(CN));
@@ -186,9 +254,9 @@ dCNdt(2) = dCldt;
 dCNdt(3) = dChdt;
 dCNdt(4) = dCbdt;
 dCNdt(5) = dNldt;
-dCNdt(6) = dNhdt;
-dCNdt(7) = dNbdt;
-dCNdt(8) = dNH4dt;
-dCNdt(9) = dNO3dt;
+% dCNdt(6) = dNhdt;
+% dCNdt(7) = dNbdt;
+dCNdt(6) = dNH4dt;
+dCNdt(7) = dNO3dt;
 
 end
