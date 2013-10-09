@@ -6,31 +6,37 @@ function Nitrogen_model3()
 
 time = (0:5000)';
 dt = 1;
-y0 = [0.11, 1500, 8500, 50, 17.5, 0.002, 0.3];
+y0 = [0.11, 1500, 8500, 50, 37.5, 0.002, 0.3];
 y = zeros(length(time), length(y0));
 DECl   = zeros(length(time), 1);
 MIN    = zeros(length(time), 1);
 UP_NO3 = zeros(length(time), 1);
 LE_NO3 = zeros(length(time), 1);
+LE_NH4 = zeros(length(time), 1);
+UP_NH4 = zeros(length(time), 1);
 y(1, :) = y0;
 for n = 1 : length(time) - 1
-    [dCNdt, DECl(n), MIN(n), UP_NO3(n), LE_NO3(n)] = myode(time(n), y(n,:));
+    [dCNdt, DECl(n), MIN(n), UP_NO3(n), LE_NO3(n), LE_NH4(n), UP_NH4(n)] = myode(time(n), y(n,:));
     y(n+1, :) = y(n, :) + dt * dCNdt;
 end
-legends = {'s','Cl','Ch','Cb','Nl','N+','N-'};
+legends = {'soil moisture','C_l (gC m^{-3})','C_h (gC m^{-3})','C_b (gC m^{-3})','N_l (gN m^{-3})','NH_4^+ (gN m^{-3})','NO_3^- (gN m^{-3})'};
 for i = 1 : length(y0)
     figure;
     plot(time, y(:,i));
-    legend(legends{i});
+    title(legends{i});
+    xlabel('t (d)');
 end
-figure; plot(time, DECl);
-figure; plot(time, MIN);
-figure; plot(time, UP_NO3);
-figure; plot(time, LE_NO3);
+figure; plot(time, DECl); title('Litter decomposition (gC m^{-3}d^{-1})'); xlabel('t (d)');
+figure; plot(time, MIN); title('Net Mineralization (gN m^{-3}d^{-1})'); xlabel('t (d)')
+figure; plot(time, UP_NO3); title('NO_3^- uptake (gN m^{-3}d^{-1})'); xlabel('t (d)')
+figure; plot(time, LE_NO3); title('NO_3^- leaching (gN m^{-3}d^{-1})'); xlabel('t (d)')
+figure; plot(time, LE_NH4); title('LE NH4');
+figure; plot(time, UP_NH4); title('UP NH4');
+
 
 end
 
-function [dCNdt, DECl, MIN, UP_NO3, LE_NO3] = myode(t, CN)
+function [dCNdt, DECl, MIN, UP_NO3, LE_NO3, LE_NH4, UP_NH4] = myode(t, CN)
 
 date = datestr(t + datenum('01-Jan-1998'));
 month = date(4:6);
@@ -241,11 +247,15 @@ if s <= sfc
 else
     fn = (1 - s) / (1 - sfc);
 end
-kn = 0.6;       % unit: m^3 d^-1 g C^-1, the rate of nitrification
+kn = 0.006;       % unit: m^3 d^-1 g C^-1, the rate of nitrification
 NIT = fn * kn * Cb * NH4;
 
 dNH4dt = MIN - IMM_NH4 - NIT - LE_NH4 - UP_NH4;
 dNO3dt = NIT - IMM_NO3 - LE_NO3 - UP_NO3;
+% dNH4dt = 0;
+% dNO3dt = 0;
+% kn_NH4 = (MIN - IMM_NH4 - LE_NH4 - UP_NH4) / (fn * Cb * NH4);
+% kn_NO3 = (IMM_NO3 + LE_NO3 + UP_NO3) / (fn * Cb * NH4);
 
 %
 dCNdt    = zeros(size(CN));
